@@ -4,6 +4,10 @@ This project involves creating a simple IRC (Internet Relay Chat) server in C++.
   
 Examples of IRC technologies:  
 * WeeChat
+  
+* POSIX specification for poll: If the value of fd is less than 0, events shall be ignored, and revents shall be set to 0 in that entry on return from poll()
+* Wireshark utility
+* `nc -v`
 
 Info:  
 * https://dev.twitch.tv/docs/irc
