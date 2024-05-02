@@ -1,10 +1,19 @@
 group: https://github.com/bakyt92/11_ft_irc/blob/master/docs/plan.md   
 IRC = Internet Relay Chat  
-* 1988 г
 * для группового общения, общаться через личные сообщения и обмениваться файлами
 * на основе IRC разработано множество мессенджеров, такие как: ICQ, Skype, Discord, Telegram, Slack, etc...
-* **most public IRC servers don't usually set a connection password**
- 
+* most public IRC servers don't usually set a connection password 
+## How to run, an example:
+In the first terminal:  
+`make`  
+`make run`
+In the second terminal:   
+`nc 0 6667`
+`PASS 2`  
+`NICK alice`  
+`USER Alice 0 * Alice`  
+`PRIVMSG alice Hello`  
+
 ## Сообщения (Internet Relay Chat Protocol)
 * Серверы и клиенты создают сообщения на которые можно ответить, а можно и нет
 * Если сообщение содержит правильные команды, то клиенту следует ответить, но это не означает, что всегда можно дождаться ответа
