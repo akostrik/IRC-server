@@ -3,6 +3,7 @@ IRC = Internet Relay Chat
 * для группового общения, общаться через личные сообщения и обмениваться файлами
 * на основе IRC разработано множество мессенджеров, такие как: ICQ, Skype, Discord, Telegram, Slack, etc...
 * most public IRC servers don't usually set a connection password 
+
 ## How to run, an example:
 In the first terminal:  
 `make`  
@@ -13,6 +14,9 @@ In the second terminal:
 `NICK alice`  
 `USER Alice 0 * Alice`  
 `PRIVMSG alice Hello`  
+
+##
+KILL исправить
 
 ## Сообщения (Internet Relay Chat Protocol)
 * Серверы и клиенты создают сообщения на которые можно ответить, а можно и нет
