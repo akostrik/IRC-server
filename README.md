@@ -39,4 +39,5 @@ Examples of IRC technologies:
 
 Info:  
 * https://dev.twitch.tv/docs/irc
-* https://www.quakenet.org/articles/102-press-release-irc-networks-under-systematic-attack-from-governments    
+* https://www.quakenet.org/articles/102-press-release-irc-networks-under-systematic-attack-from-governments
+* --track-fds=all ошибка
