@@ -69,23 +69,23 @@ void Server::init() {
 void Server::run() {
   std::cout << "Server is running. Waiting clients to connect >\n";
   while (sigReceived == false) {
-    eraseUnusedClis();
-    eraseUnusedChs();
+    clear();
     markPollsToSendMsgsTo();
-    int countEvents = poll(polls.data(), polls.size(), 100);                       // наблюдаем за всеми сокетами сразу, есть ли там что-то для нас
+    int countEvents = poll(polls.data(), polls.size(), 1000);                        // наблюдаем за всеми сокетами сразу, есть ли там что-то для нас
     if (countEvents < 0)
       throw std::runtime_error("Poll error: [" + std::string(strerror(errno)) + "]");
-    if(countEvents > 0)                                                            // в каких=то сокетах есть данные
-      for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++) {
-        if((poll->revents & POLLIN) && poll->fd == fdForNewClis) {                 // новый клиент подключился к сокету fdServ
+    if(countEvents > 0) {                                                            // в каких=то сокетах есть данные
+      for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++) // новый клиент подключился к сокету fdServ
+        if((poll->revents & POLLIN) && poll->fd == fdForNewClis) {
           addNewClient(*poll);
           break;
         }
-        else if((poll->revents & POLLIN) && poll->fd != fdForNewClis)              // клиент прислал нам сообщение через свой fdForMsgs
+        else if((poll->revents & POLLIN) && poll->fd != fdForNewClis)                // клиент прислал нам сообщение через свой fdForMsgs
           receiveBufAndExecCmds(poll->fd);
-        else if(poll->revents & POLLOUT)                                          // есть сообщения для отпраки клиентам
+        else if (poll->revents & POLLOUT) {                                          // есть сообщения для отпраки клиентам
           sendPreparedResps(clis.at(poll->fd));
-      }
+        }
+    }
   }
   std::cout << "Terminated\n";
 }
@@ -104,8 +104,9 @@ void Server::addNewClient(pollfd poll) {
 }
 
 void Server::receiveBufAndExecCmds(int fd) {
-  if(!(cli = clis.at(fd)))
-    return ;
+  cli = clis.at(fd);
+  // if(!(cli))
+  //   return ;
   vector<unsigned char> buf0(BUFSIZE); // std::vector is the recommended way of implementing a variable-length buffer in C++
   for(size_t i = 0; i < buf0.size(); i++)
     buf0[i] = '\0';
@@ -117,17 +118,15 @@ void Server::receiveBufAndExecCmds(int fd) {
   else {
     string buf = string(buf0.begin(), buf0.end());
     buf.resize(nbBytesReallyReceived);
-    if(buf.substr(0, 4) != "PING")
-      cout << "\n" << withoutRN("I have received from " + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (cli->fd))).str() + " buf: [" + buf + "] -> [" + cli->bufRecv + buf + "]") << "\n";
+    cout << withoutRN("I have received buf from " + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (cli->fd))).str() + ": [" + buf + "] -> [" + cli->bufRecv + buf + "]") << "\n";
     buf = cli->bufRecv + buf;
     std::vector<string> cmds = splitBufToCmds(buf);
     for(std::vector<string>::iterator cmd = cmds.begin(); cmd != cmds.end(); cmd++) {
       //vector<string>().swap(ar); // попробовать убрать
-      ar.clear();
       ar = splitCmdToArgs(*cmd);
       cout << infoCmd();
       execCmd();
     }
-    cout << infoServ();
+    cout << infoServ() << endl;
   }
 }

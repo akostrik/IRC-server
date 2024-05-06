@@ -6,19 +6,15 @@ string Server::users(Ch *ch) { // возможно это надо будет п
     return "ch is NULL\n";
   if (ch->size() == 0)
     return "no users";
-  string ret = "";
+  string ret = "users: ";
   for(set<Cli*>::iterator it = ch->clis.begin(); it != ch->clis.end(); it++)
     if (ch->adms.find(*it) == ch->adms.end())
       ret += (*it)->nick + " ";
     else
       ret += "@" + (*it)->nick + " ";
-  if (ret.size() > 0)
-    ret.resize(ret.size() - 1);
   return ret;
 }
 
-// "<client> <channel> <modestring> <mode arguments>..."
-// <modestring> and <mode arguments> are a mode string and the mode arguments (delimited as separate parameters) as defined in the MODE message description
 string Server::mode(Ch *ch) {
   if (ch == NULL)
     return "ch is NULL\n";
@@ -53,8 +49,6 @@ string Server::toLower(string s) {
 }
 
 string Server::infoCmd() {          // debugging
-  if(ar.size() == 0 || ar[0] == "PING")
-    return "";
   string ret = "I execute                 : ";
   for(vector<string>::iterator it = ar.begin(); it != ar.end(); it++)
     ret += "[" + *it + "] ";
@@ -62,8 +56,6 @@ string Server::infoCmd() {          // debugging
 }
 
 string Server::infoServ() {        // debugging
-  if(ar.size() == 0 || ar[0] == "PING")
-    return "";
   string ret;
   string myChar;
   for(map<int, Cli*>::iterator it = clis.begin(); it != clis.end(); it++) {
@@ -143,14 +135,14 @@ int Server::prepareResp(Cli *to, string msg) {
   return 0;
 }
 
-int Server::prepareRespExceptAuthor(Ch *ch, string msg) {
+int Server::prepareRespAuthorIncluding(Ch *ch, string msg) {
   for(set<Cli*>::iterator to = ch->clis.begin(); to != ch->clis.end(); to++) 
     if((*to)->fd != cli->fd)
       prepareResp(*to, msg);
   return 0;
 }
 
-int Server::prepareRespAuthorIncluding(Ch *ch, string msg) {
+int Server::prepareRespExceptAuthor(Ch *ch, string msg) {
   for(set<Cli*>::iterator to = ch->clis.begin(); to != ch->clis.end(); to++) 
     prepareResp(*to, msg);
   return 0;
@@ -169,8 +161,7 @@ int Server::prepareRespAuthorIncluding(Ch *ch, string msg) {
 //   This can only be detected when a send is attempted, and the destination isn't reachable
 //   That could happen only after minutes or hours (or someone could in the mean time plug the cable back in, and you never know!)
 void Server::sendPreparedResps(Cli *to) {
-  if(to->bufToSend.substr(0, 4) != "PONG")
-    cout << "I send buf to fd=" << to->fd << "        : [" << withoutRN(to->bufToSend) << "]\n";
+  cout << "I send buf to fd=" << to->fd << "        : [" << withoutRN(to->bufToSend) << "]\n";
   ssize_t nbBytesReallySent = send(to->fd, (to->bufToSend).c_str(), (to->bufToSend).size(), MSG_NOSIGNAL | MSG_DONTWAIT);
   if (nbBytesReallySent == (ssize_t)to->bufToSend.size()) {
     to->bufToSend = "";
@@ -241,6 +232,8 @@ int Server::nbChannels(Cli *c) {
 }
 
 void Server::eraseCliFromCh(string nick, string chName) {
+  if(getCli(nick)->invits.find(chName) != getCli(nick)->invits.end()) //
+    getCli(nick)->invits.erase(chName);
   if(getCh(chName)->clis.count(getCli(nick)) > 0)
     getCh(chName)->clis.erase(getCli(nick));
   if(getCh(chName)->adms.count(getCli(nick)) > 0)
@@ -291,4 +284,11 @@ void Server::eraseUnusedClis() {                                              //
   }
   for(set<int>::iterator it = reallyRemouved.begin(); it != reallyRemouved.end(); it++)
     fdsToEraseNextIteration.erase(*it);
+}
+
+void Server::clear() {
+  eraseUnusedClis();
+  eraseUnusedChs();
+  ar.clear();
+  cli = NULL;
 }
