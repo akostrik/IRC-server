@@ -1,5 +1,5 @@
 IRC = Internet Relay Chat  
-* на основе IRC: ICQ, Skype, Discord, Telegram, Slack, etc...
+* Examples of IRC technologies: ICQ, Skype, Discord, Telegram, Slack, etc...
 * most public IRC servers don't usually set a connection password 
 
 ## How to run using the terminal:
@@ -21,9 +21,6 @@ install and start irssi
 `/connect localhost 6667 myPass alice`  
 `/msg alice Hello`  
 
-##
-KILL исправить
-
 ## Сообщения (Internet Relay Chat Protocol)
 * Серверы и клиенты создают сообщения на которые можно ответить, а можно и нет
 * Если сообщение содержит правильные команды, то клиенту следует ответить, но это не означает, что всегда можно дождаться ответа
@@ -36,13 +33,6 @@ KILL исправить
 
 This project involves creating a simple IRC (Internet Relay Chat) server in C++. The goal is to develop a non-blocking server (no forking and using only one poll), that is fully compatible with an official IRC client, providing a platform for real-time text messaging in a network.
   
-Examples of IRC technologies:  
-* WeeChat
-  
-* POSIX specification for poll: If the value of fd is less than 0, events shall be ignored, and revents shall be set to 0 in that entry on return from poll()
-* Wireshark utility
-* `nc -v`
-
 Info:  
 * https://dev.twitch.tv/docs/irc
 * https://www.quakenet.org/articles/102-press-release-irc-networks-under-systematic-attack-from-governments
