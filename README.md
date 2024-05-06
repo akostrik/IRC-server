@@ -5,9 +5,9 @@ IRC = Internet Relay Chat
 ## How to run using the terminal:
 In the first terminal:  
 `make`  
-`make run`
+`make run`  
 In the second terminal:   
-`nc localhost 6667`
+`nc localhost 6667`  
 `PASS myPass`  
 `NICK alice`  
 `USER Alice localhost * Alice`  
@@ -17,9 +17,9 @@ In the second terminal:
 In the terminal:  
 `make`  
 `make run`  
-install and start irssi
+install and start irssi  
 `/connect localhost 6667 myPass alice`  
-`/msg alice Hello`
+`/msg alice Hello`  
 
 ##
 KILL исправить
