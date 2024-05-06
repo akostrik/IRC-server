@@ -1,19 +1,25 @@
-group: https://github.com/bakyt92/11_ft_irc/blob/master/docs/plan.md   
 IRC = Internet Relay Chat  
-* для группового общения, общаться через личные сообщения и обмениваться файлами
-* на основе IRC разработано множество мессенджеров, такие как: ICQ, Skype, Discord, Telegram, Slack, etc...
+* на основе IRC: ICQ, Skype, Discord, Telegram, Slack, etc...
 * most public IRC servers don't usually set a connection password 
 
-## How to run, an example:
+## How to run using the terminal:
 In the first terminal:  
 `make`  
 `make run`
 In the second terminal:   
-`nc 0 6667`
-`PASS 2`  
+`nc localhost 6667`
+`PASS myPass`  
 `NICK alice`  
-`USER Alice 0 * Alice`  
+`USER Alice localhost * Alice`  
 `PRIVMSG alice Hello`  
+
+## How to run using irssi client:
+In the terminal:  
+`make`  
+`make run`  
+install and start irssi
+`/connect localhost 6667 myPass alice`  
+`/msg alice Hello`
 
 ##
 KILL исправить
