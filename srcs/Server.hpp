@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   Server.hpp                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: ufitzhug <ufitzhug@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2024/05/03 21:44:18 by ufitzhug          #+#    #+#             */
+/*   Updated: 2024/05/03 21:44:21 by ufitzhug         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #ifndef SERVER_HPP
 # define SERVER_HPP
 # include <algorithm>
@@ -32,7 +44,7 @@ using std::numeric_limits;
 extern bool sigReceived;
 
 struct Cli {
-  Cli(int fd_, string host_) : fd(fd_), host(host_), passOk(false), capInProgress(false), nick(""), uName(""), rName(""), invits(set<string>()), bufToSend(""), bufRecv("") {};
+  Cli(int fd_, string host_) : fd(fd_), host(host_), passOk(false), capInProgress(false), nick(""), uName(""), rName(""), invits(set<string>()), bufSend(""), oldBufRecv("") {};
   int                      fd;
   string                   host;
   bool                     passOk;
@@ -41,8 +53,8 @@ struct Cli {
   string                   uName;
   string                   rName;
   set<string>              invits;
-  string                   bufToSend;
-  string                   bufRecv;
+  string                   oldBufRecv;
+  string                   bufSend;
 };
 
 struct Ch {
@@ -69,7 +81,7 @@ private:
   map<int, Cli*>           clis;
   map<string, Ch*>         chs;
   vector<string>           ar;           // the command being treated at the moment, args[0] = command
-  Cli                      *cli;         // автор текущей команды
+  Cli                      *auth;         // автор текущей команды
   set<int>                 fdsToEraseNextIteration;
 public:
                            Server(string port_, string pass_); 
@@ -96,7 +108,8 @@ public:
   int                      execPrivmsg();
   int                      execNotice();
   int                      execTopic();
-  int                      execMode();
+  int                      execModeCh();
+  int                      execModeCli();
   int                      execModeOneOoption(string opt, string val);
   int                      execPing();
   int                      execWhois();
@@ -119,6 +132,7 @@ public:
   string                   users(Ch *ch);
   string                   withoutRN(string s);
   string                   toLower(string s);
+  string                   infoBuf(string buf);
   string                   infoCmd();
   string                   infoServ();
   vector<string>           splitBufToCmds(string s);

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   utils.cpp                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: ufitzhug <ufitzhug@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2024/05/03 21:45:04 by ufitzhug          #+#    #+#             */
+/*   Updated: 2024/05/03 21:45:20 by ufitzhug         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "Server.hpp"
 class Server;
 
@@ -6,15 +18,19 @@ string Server::users(Ch *ch) { // возможно это надо будет п
     return "ch is NULL\n";
   if (ch->size() == 0)
     return "no users";
-  string ret = "users: ";
+  string ret = "";
   for(set<Cli*>::iterator it = ch->clis.begin(); it != ch->clis.end(); it++)
     if (ch->adms.find(*it) == ch->adms.end())
       ret += (*it)->nick + " ";
     else
       ret += "@" + (*it)->nick + " ";
+  if (ret.size() > 0)
+    ret.resize(ret.size() - 1);
   return ret;
 }
 
+// "<client> <channel> <modestring> <mode arguments>..."
+// <modestring> and <mode arguments> are a mode string and the mode arguments (delimited as separate parameters) as defined in the MODE message description
 string Server::mode(Ch *ch) {
   if (ch == NULL)
     return "ch is NULL\n";
@@ -48,7 +64,16 @@ string Server::toLower(string s) {
   return s;
 }
 
+string Server::infoBuf(string newBuf) { // debugging
+  string ret = "";
+  if(newBuf.substr(0, 4) != "PING")
+    ret += "\nI have received from " + withoutRN("I have received from " + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (auth->fd))).str() + " buf: [" + newBuf + "] -> [" + auth->oldBufRecv + newBuf + "]") + "\n";
+  return ret;
+}
+
 string Server::infoCmd() {          // debugging
+  if(ar.size() == 0 || ar[0] == "PING")
+    return "";
   string ret = "I execute                 : ";
   for(vector<string>::iterator it = ar.begin(); it != ar.end(); it++)
     ret += "[" + *it + "] ";
@@ -56,11 +81,13 @@ string Server::infoCmd() {          // debugging
 }
 
 string Server::infoServ() {        // debugging
+  if(ar.size() == 0 || ar[0] == "PING")
+    return "";
   string ret;
   string myChar;
   for(map<int, Cli*>::iterator it = clis.begin(); it != clis.end(); it++) {
     myChar = it->second->passOk ? 'T' : 'F';
-    ret += "My client                 : nick = " + it->second->nick + ", bufR = [" + it->second->bufRecv + "], rName = ["+ it->second->rName + "], uName = " + it->second->uName + ", passOk = " + myChar + "\n";
+    ret += "My client                 : nick = " + it->second->nick + ", bufR = [" + it->second->oldBufRecv + "], rName = ["+ it->second->rName + "], uName = " + it->second->uName + ", passOk = " + myChar + "\n";
   }
   for(map<string, Ch*>::iterator ch = chs.begin(); ch != chs.end(); ch++)
     ret += "My channel                : name = " + ch->first + ", topic = " + ch->second->topic + ", pass = " + ch->second->pass + ", limit = " + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (ch->second->limit) )).str() + ", mode = " + mode(ch->second) + "\n";
@@ -84,9 +111,9 @@ vector<string> Server::splitBufToCmds(string s) {
     s.erase(0, pos + 2);
   }
   if(s.size() > 0)
-    cli->bufRecv = s; // последний кусок сообщения, если он не заканчивается на \r\n (то есть это скорее всего начало следующей команды)
+    auth->oldBufRecv = s; // последний кусок сообщения, если он не заканчивается на \r\n (то есть это скорее всего начало следующей команды)
   else
-    cli->bufRecv = "";
+    auth->oldBufRecv = "";
   return parts;
 }
 
@@ -131,18 +158,18 @@ int Server::prepareResp(Cli *to, string msg) {
   if(msg.size() > MAX_CMD_LEN - 2)
     msg.resize(MAX_CMD_LEN - 2);
   // if(to->passOk && to->nick != "" && to->uName != "") << не позволяет отправлять сообщения
-  to->bufToSend += (msg + "\r\n");
-  return 0;
-}
-
-int Server::prepareRespAuthorIncluding(Ch *ch, string msg) {
-  for(set<Cli*>::iterator to = ch->clis.begin(); to != ch->clis.end(); to++) 
-    if((*to)->fd != cli->fd)
-      prepareResp(*to, msg);
+  to->bufSend += (msg + "\r\n");
   return 0;
 }
 
 int Server::prepareRespExceptAuthor(Ch *ch, string msg) {
+  for(set<Cli*>::iterator to = ch->clis.begin(); to != ch->clis.end(); to++) 
+    if((*to)->fd != auth->fd)
+      prepareResp(*to, msg);
+  return 0;
+}
+
+int Server::prepareRespAuthorIncluding(Ch *ch, string msg) {
   for(set<Cli*>::iterator to = ch->clis.begin(); to != ch->clis.end(); to++) 
     prepareResp(*to, msg);
   return 0;
@@ -161,21 +188,22 @@ int Server::prepareRespExceptAuthor(Ch *ch, string msg) {
 //   This can only be detected when a send is attempted, and the destination isn't reachable
 //   That could happen only after minutes or hours (or someone could in the mean time plug the cable back in, and you never know!)
 void Server::sendPreparedResps(Cli *to) {
-  cout << "I send buf to fd=" << to->fd << "        : [" << withoutRN(to->bufToSend) << "]\n";
-  ssize_t nbBytesReallySent = send(to->fd, (to->bufToSend).c_str(), (to->bufToSend).size(), MSG_NOSIGNAL | MSG_DONTWAIT);
-  if (nbBytesReallySent == (ssize_t)to->bufToSend.size()) {
-    to->bufToSend = "";
+  if(to->bufSend.substr(0, 4) != "PONG")
+    cout << "I send buf to fd=" << to->fd << "        : [" << withoutRN(to->bufSend) << "]\n";
+  ssize_t nbBytesReallySent = send(to->fd, (to->bufSend).c_str(), (to->bufSend).size(), MSG_NOSIGNAL | MSG_DONTWAIT);
+  if (nbBytesReallySent == (ssize_t)to->bufSend.size()) {
+    to->bufSend = "";
     for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++)
       if (poll->fd == to->fd)
         poll->events = POLLIN;
   }
   else
-    to->bufToSend.erase(0, nbBytesReallySent);
+    to->bufSend.erase(0, nbBytesReallySent);
 }
 
 void Server::markPollsToSendMsgsTo() {
   for (map<int, Cli*>::iterator it = clis.begin(); it != clis.end(); ++it)
-    if (it->second->bufToSend.size() > 0)
+    if (it->second->bufSend.size() > 0)
       for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++)
         if (poll->fd == it->first) {
           poll->events = POLLOUT;
@@ -232,8 +260,6 @@ int Server::nbChannels(Cli *c) {
 }
 
 void Server::eraseCliFromCh(string nick, string chName) {
-  if(getCli(nick)->invits.find(chName) != getCli(nick)->invits.end()) //
-    getCli(nick)->invits.erase(chName);
   if(getCh(chName)->clis.count(getCli(nick)) > 0)
     getCh(chName)->clis.erase(getCli(nick));
   if(getCh(chName)->adms.count(getCli(nick)) > 0)
@@ -256,7 +282,7 @@ void Server::eraseUnusedChs() {
 void Server::eraseUnusedClis() {                                              // вызывать только перед вызовом poll
   set<int> reallyRemouved;
   for(set<int>::iterator fdToErase = fdsToEraseNextIteration.begin(); fdToErase != fdsToEraseNextIteration.end(); fdToErase++) {
-    if(clis.find(*fdToErase) != clis.end() && clis[*fdToErase]->bufToSend == "") {
+    if(clis.find(*fdToErase) != clis.end() && clis[*fdToErase]->bufSend == "") {
       for(map<string, Ch*>::iterator ch = chs.begin(); ch != chs.end(); ch++) // стереть его изо всех каналов
         eraseCliFromCh(clis[*fdToErase]->nick, ch->first);
       for(map<int, Cli*> ::iterator it = clis.begin(); it != clis.end(); it++)
@@ -284,11 +310,4 @@ void Server::eraseUnusedClis() {                                              //
   }
   for(set<int>::iterator it = reallyRemouved.begin(); it != reallyRemouved.end(); it++)
     fdsToEraseNextIteration.erase(*it);
-}
-
-void Server::clear() {
-  eraseUnusedClis();
-  eraseUnusedChs();
-  ar.clear();
-  cli = NULL;
 }

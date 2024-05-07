@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   Server.cpp                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: akostrik <akostrik@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2024/05/03 21:44:56 by ufitzhug          #+#    #+#             */
+/*   Updated: 2024/05/03 22:02:18 by akostrik         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "Server.hpp"
 
 bool sigReceived;
@@ -45,19 +57,20 @@ void Server::init() {
   if(getaddrinfo(NULL, port.c_str(), &hints, &listRes))
     throw std::runtime_error("getaddrinfo error: [" + std::string(strerror(errno)) + "]");
   int optVal = 1;
-  for(struct addrinfo* hint = listRes; hint != NULL; hint = hint->ai_next)
-    if((fdForNewClis = socket(hint->ai_family, hint->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC| SOCK_NONBLOCK | SOCK_CLOEXEC, hint->ai_protocol)) < 0)
+  for(struct addrinfo* hint = listRes; hint != NULL; hint = hint->ai_next) {
+    if((fdForNewClis = socket(hint->ai_family, hint->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC| SOCK_CLOEXEC, hint->ai_protocol)) < 0)
       throw std::runtime_error("function socket error: [" + std::string(strerror(errno)) + "]");
-    else if(setsockopt(fdForNewClis, SOL_SOCKET, SO_REUSEADDR, &optVal, sizeof(optVal)))
+    if(setsockopt(fdForNewClis, SOL_SOCKET, SO_REUSEADDR, &optVal, sizeof(optVal)))
       throw std::runtime_error("setsockopt error: [" + std::string(strerror(errno)) + "]");
-    else if(setsockopt(fdForNewClis, SOL_SOCKET, SO_REUSEPORT, &optVal, sizeof(optVal)))
+    if(setsockopt(fdForNewClis, SOL_SOCKET, SO_REUSEPORT, &optVal, sizeof(optVal)))
       throw std::runtime_error("setsockopt error: [" + std::string(strerror(errno)) + "]");
-    else if(bind(fdForNewClis, hint->ai_addr, hint->ai_addrlen)) {
+    if(bind(fdForNewClis, hint->ai_addr, hint->ai_addrlen)) {
       close(fdForNewClis);
       hint->ai_next == NULL ? throw std::runtime_error("bind error: [" + std::string(strerror(errno)) + "]") : perror("bind error");
     }
     else
       break ;
+  }
   freeaddrinfo(listRes);
   if(listen(fdForNewClis, SOMAXCONN))
     throw std::runtime_error("listen error: [" + std::string(strerror(errno)) + "]");
@@ -69,23 +82,23 @@ void Server::init() {
 void Server::run() {
   std::cout << "Server is running. Waiting clients to connect >\n";
   while (sigReceived == false) {
-    clear();
+    eraseUnusedClis();
+    eraseUnusedChs();
     markPollsToSendMsgsTo();
-    int countEvents = poll(polls.data(), polls.size(), 1000);                        // наблюдаем за всеми сокетами сразу, есть ли там что-то для нас
+    int countEvents = poll(polls.data(), polls.size(), 100);                       // наблюдаем за всеми сокетами сразу, есть ли там что-то для нас
     if (countEvents < 0)
       throw std::runtime_error("Poll error: [" + std::string(strerror(errno)) + "]");
-    if(countEvents > 0) {                                                            // в каких=то сокетах есть данные
-      for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++) // новый клиент подключился к сокету fdServ
-        if((poll->revents & POLLIN) && poll->fd == fdForNewClis) {
+    if(countEvents > 0)                                                            // в каких=то сокетах есть данные
+      for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++) {
+        if((poll->revents & POLLIN) && poll->fd == fdForNewClis) {                 // новый клиент подключился к сокету fdServ
           addNewClient(*poll);
           break;
         }
-        else if((poll->revents & POLLIN) && poll->fd != fdForNewClis)                // клиент прислал нам сообщение через свой fdForMsgs
+        else if((poll->revents & POLLIN) && poll->fd != fdForNewClis)              // клиент прислал нам сообщение через свой fdForMsgs
           receiveBufAndExecCmds(poll->fd);
-        else if (poll->revents & POLLOUT) {                                          // есть сообщения для отпраки клиентам
+        else if(poll->revents & POLLOUT)                                          // есть сообщения для отпраки клиентам
           sendPreparedResps(clis.at(poll->fd));
-        }
-    }
+      }
   }
   std::cout << "Terminated\n";
 }
@@ -100,33 +113,32 @@ void Server::addNewClient(pollfd poll) {
   clis[fdForMsgs] = new Cli(fdForMsgs, inet_ntoa(((struct sockaddr_in*)&sa)->sin_addr));;
   struct pollfd pollForMsgs = {fdForMsgs, POLLIN, 0};
   polls.push_back(pollForMsgs);
-  cout << "*** New cli (fd=" + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (fdForMsgs) )).str() + ")\n\n";
+  cout << "\n*** New cli (fd=" + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (fdForMsgs) )).str() + ")\n";
 }
 
 void Server::receiveBufAndExecCmds(int fd) {
-  cli = clis.at(fd);
-  // if(!(cli))
-  //   return ;
-  vector<unsigned char> buf0(BUFSIZE); // std::vector is the recommended way of implementing a variable-length buffer in C++
-  for(size_t i = 0; i < buf0.size(); i++)
-    buf0[i] = '\0';
-  int nbBytesReallyReceived = recv(cli->fd, buf0.data(), buf0.size() - 1, MSG_NOSIGNAL | MSG_DONTWAIT);
+  if(!(auth = clis.at(fd)))
+    return ;
+  vector<unsigned char> newBuf0(BUFSIZE); // std::vector is the recommended way of implementing a variable-length buffer in C++
+  for(size_t i = 0; i < newBuf0.size(); i++)
+    newBuf0[i] = '\0';
+  int nbBytesReallyReceived = recv(auth->fd, newBuf0.data(), newBuf0.size() - 1, MSG_NOSIGNAL | MSG_DONTWAIT);
   if(nbBytesReallyReceived < 0)
     perror("recv");                                                                  // ошибка, но возможно клиент ещё тут
   else if(nbBytesReallyReceived == 0)                                                                // клиент пропал
-    fdsToEraseNextIteration.insert(cli->fd);
+    fdsToEraseNextIteration.insert(auth->fd);
   else {
-    string buf = string(buf0.begin(), buf0.end());
-    buf.resize(nbBytesReallyReceived);
-    cout << withoutRN("I have received buf from " + static_cast< std::ostringstream &>((std::ostringstream() << std::dec << (cli->fd))).str() + ": [" + buf + "] -> [" + cli->bufRecv + buf + "]") << "\n";
-    buf = cli->bufRecv + buf;
-    std::vector<string> cmds = splitBufToCmds(buf);
+    string newBufRecv = string(newBuf0.begin(), newBuf0.end());
+    newBufRecv.resize(nbBytesReallyReceived);
+    cout << infoBuf(newBufRecv);
+    newBufRecv = auth->oldBufRecv + newBufRecv;
+    std::vector<string> cmds = splitBufToCmds(newBufRecv);
     for(std::vector<string>::iterator cmd = cmds.begin(); cmd != cmds.end(); cmd++) {
-      //vector<string>().swap(ar); // попробовать убрать
+      ar.clear();
       ar = splitCmdToArgs(*cmd);
       cout << infoCmd();
       execCmd();
     }
-    cout << infoServ() << endl;
+    cout << infoServ();
   }
 }
