@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   Server.hpp                                         :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: ufitzhug <ufitzhug@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/05/03 21:44:18 by ufitzhug          #+#    #+#             */
-/*   Updated: 2024/05/03 21:44:21 by ufitzhug         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #ifndef SERVER_HPP
 # define SERVER_HPP
 # include <algorithm>
@@ -44,7 +32,7 @@ using std::numeric_limits;
 extern bool sigReceived;
 
 struct Cli {
-  Cli(int fd_, string host_) : fd(fd_), host(host_), passOk(false), capInProgress(false), nick(""), uName(""), rName(""), invits(set<string>()), bufSend(""), oldBufRecv("") {};
+  Cli(int fd_, string host_) : fd(fd_), host(host_), passOk(false), capInProgress(false), nick(""), uName(""), rName(""), invits(set<string>()), oldBufRecv(""), bufSend("") {};
   int                      fd;
   string                   host;
   bool                     passOk;

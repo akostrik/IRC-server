@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   Commands.cpp                                       :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: akostrik <akostrik@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/05/03 21:38:52 by ufitzhug          #+#    #+#             */
-/*   Updated: 2024/05/03 22:01:50 by akostrik         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "Server.hpp"
 class Server;
 
@@ -38,12 +26,12 @@ int Server::execCmd() {
     return execJoin();
   if(ar[0] == "PART")
     return execPart();
+  if(ar[0] == "MODE" && ar.size() == 1)
+    return prepareResp(auth, "461 MODE :Not enough parameters");                        // ERR_NEEDMOREPARAMS
   if(ar[0] == "MODE" && ar.size() > 1 && ar[1][0] == '#')
     return execModeCh();
   if(ar[0] == "MODE" && ar.size() > 1 && ar[1][0] != '#')
     return execModeCli();
-  if(ar[0] == "MODE" && ar.size() == 1)
-    return prepareResp(auth, "461 MODE :Not enough parameters");                         // ERR_NEEDMOREPARAMS
   if(ar[0] == "TOPIC")
     return execTopic();
   if(ar[0] == "INVITE")
@@ -88,7 +76,7 @@ int Server::execUser() {
   if(ar.size() < 5)
     return prepareResp(auth, "461 USER :Not enough parameters");                         // ERR_NEEDMOREPARAMS 
   if(auth->uName != "")
-    return prepareResp(auth, ":username can not be empty");                              
+    return prepareResp(auth, ":username can not be empty");
   auth->uName = ar[1];
   auth->rName = ar[4];
   if(auth->nick != "" && auth->passOk && !auth->capInProgress)
@@ -139,16 +127,16 @@ int Server::execPrivmsg() {
     return prepareResp(auth, "412 :No text to send");                                    // ERR_NOTEXTTOSEND 
   vector<string> targs = splitArgToSubargs(ar[1]);
   if((set<std::string>(targs.begin(), targs.end())).size() < targs.size() || targs.size() > MAX_NB_TARGETS)
-    return prepareResp(auth, "407 " + ar[1] + " not valid recipients");                  // ERR_TOOMANYTARGETS -> how many?
+    return prepareResp(auth, "407 " + ar[1] + " not valid recipients");                  // ERR_TOOMANYTARGETS
   for(vector<string>::iterator targ = targs.begin(); targ != targs.end(); targ++)
     if((*targ)[0] == '#' && chs.find(toLower(*targ)) == chs.end())
-      prepareResp(auth, "401 " + *targ + " :No such nick/channel " + (*targ));                        // ERR_NOSUCHNICK
+      prepareResp(auth, "401 " + *targ + " :No such nick/channel " + (*targ));           // ERR_NOSUCHNICK
     else if((*targ)[0] == '#' && getCliOnCh(auth->nick, *targ) == NULL)
       prepareResp(auth, "404 :" + auth->nick + "!" + auth->uName + "@127.0.0.1 " + *targ + " :Cannot send to channel"); 
     else if((*targ)[0] == '#' && getCliOnCh(auth->nick, *targ) != NULL)
       prepareRespExceptAuthor(getCh(*targ), ":" + auth->nick + "!" + auth->uName + "@127.0.0.1 PRIVMSG " + ar[1] + " :" + ar[2]);
     else if((*targ)[0] != '#' && !getCli(*targ))
-      prepareResp(auth, "401 " + *targ + " :No such nick/channel " + (*targ));                      // ERR_NOSUCHNICK
+      prepareResp(auth, "401 " + *targ + " :No such nick/channel " + (*targ));           // ERR_NOSUCHNICK
     else if((*targ)[0] != '#')
       prepareResp(getCli(*targ), ":" + auth->nick + "!" + auth->uName + "@127.0.0.1 PRIVMSG " + ar[1] + " :" + ar[2]);
   return 0;
@@ -169,7 +157,7 @@ int Server::execNotice() {
 // not implemented here: ERR_BANNEDFROMCHAN ERR_BADCHANMASK ERR_NOSUCHCHANNEL ERR_UNAVAILRESOURCE
 int Server::execJoin() {
   if(!auth->passOk || auth->nick== "" || auth->uName == "")
-    return prepareResp(auth, "451 " + auth->nick + " :User not logged in" );              // ERR_NOTREGISTERED
+    return prepareResp(auth, "451 " + auth->nick + " :User not logged in" );             // ERR_NOTREGISTERED
   if(ar.size() < 2)
     return prepareResp(auth, "461 JOIN :Not enough parameters");                         // ERR_NEEDMOREPARAMS 
   if(ar.size() == 2 && ar[1] == "0") {
@@ -210,11 +198,11 @@ int Server::execJoin() {
         getCh(*chName)->clis.insert(auth);
         if(auth->invits.find(*chName) != auth->invits.end())
           auth->invits.erase(*chName);
-        prepareRespAuthorIncluding(getCh(*chName), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " JOIN " + *chName); // ok channel
+        prepareRespAuthorIncluding(getCh(*chName), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " JOIN " + *chName);
         if(getCh(*chName)->topic != "")
-          prepareResp(auth, "332 " + auth->nick + " " + *chName + " :" + getCh(*chName)->topic); // RPL_TOPIC                      // ok channel
+          prepareResp(auth, "332 " + auth->nick + " " + *chName + " :" + getCh(*chName)->topic); // RPL_TOPIC
         prepareRespAuthorIncluding(getCh(*chName), ":localhost 353 " + auth->nick + "!" + auth->uName + "@127.0.0.1" + " = " + *chName + " :" + users(getCh(*chName)));
-        // prepareResp(auth, ":localhost 353 " + auth->nick + "!" + auth->uName + "@127.0.0.1" + " = " + *chName + " :" + users(getCh(*chName)));               // RPL_NAMREPLY
+        // RPL_NAMREPLY
       } 
     }
   }
@@ -223,7 +211,7 @@ int Server::execJoin() {
 
 int Server::execPart() {
   if(!auth->passOk || auth->nick== "" || auth->uName == "")
-    return prepareResp(auth, "451 " + auth->nick + " :User not logged in" );              // ERR_NOTREGISTERED
+    return prepareResp(auth, "451 " + auth->nick + " :User not logged in" );             // ERR_NOTREGISTERED
   if(ar.size() < 2)
     return prepareResp(auth, "461 PART :Not enough parameters");                         // ERR_NEEDMOREPARAMS
   vector<string> chNames = splitArgToSubargs(ar[1]);
@@ -233,12 +221,7 @@ int Server::execPart() {
     else if(getCliOnCh(auth, *chName) == NULL)
       prepareResp(auth, "442 " + *chName + " :You're not on that channel");              // ERR_NOTONCHANNEL
     else {
-      if (ar.size() > 2) {
-        prepareRespAuthorIncluding(getCh(ar[1]), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " PART " + ar[1] + " :" + ar[2]);
-      }
-      else {
-        prepareRespAuthorIncluding(getCh(ar[1]), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " PART " + ar[1]);
-      }
+      prepareRespAuthorIncluding(getCh(ar[1]), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " PART " + ar[1] + " :" + (ar.size() > 2 ? ar[2] : ""));
       eraseCliFromCh(auth->nick, *chName);
     }
   return 0;
@@ -247,7 +230,7 @@ int Server::execPart() {
 // not implemented here ERR_BADCHANMASK
 int Server::execKick() {
   if(!auth->passOk || auth->nick== "" || auth->uName == "")
-    return prepareResp(auth, "451 " + auth->nick + " :User not logged in" );              // ERR_NOTREGISTERED
+    return prepareResp(auth, "451 " + auth->nick + " :User not logged in" );             // ERR_NOTREGISTERED
   if(ar.size() < 3)
     return prepareResp(auth, "461 KICK :Not enough parameters");                         // ERR_NEEDMOREPARAMS
   std::vector<string> chNames = splitArgToSubargs(ar[1]);
@@ -264,12 +247,7 @@ int Server::execKick() {
         if(getCliOnCh(*targ, *chName) == NULL)
           prepareResp(auth, "441 " + *targ + " " + *chName + " :They aren't on that channel"); // ERR_USERNOTINCHANNEL 
         else {
-          if (ar.size() > 3) {
-            prepareRespAuthorIncluding(getCh(ar[1]), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " KICK " + ar[1] + " " + ar[2] + " :" + ar[3]);
-          }
-          else {
-            prepareRespAuthorIncluding(getCh(ar[1]), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " KICK " + ar[1] + " " + ar[2]);
-          }
+          prepareRespAuthorIncluding(getCh(ar[1]), ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " KICK " + ar[1] + " " + ar[2] + " :" + (ar.size() > 3 ? ar[3] : ""));
           eraseCliFromCh(*targ, *chName);
         }
       }
@@ -329,12 +307,8 @@ int Server::execTopic() {
 }
 
 int Server::execQuit() {
-  for(map<int, Cli*>::iterator cli = clis.begin(); cli != clis.end(); cli++) {
-    if (ar.size() == 2)
-      prepareResp(cli->second, cli->second->nick + "!" + cli->second->uName + "@" + cli->second->host + " QUIT :Quit:" + ar[1]);
-    else 
-      prepareResp(cli->second, cli->second->nick + "!" + cli->second->uName + "@" + cli->second->host + " QUIT :Quit:");
-  }
+  for(map<int, Cli*>::iterator cli = clis.begin(); cli != clis.end(); cli++)
+    prepareResp(cli->second, cli->second->nick + "!" + cli->second->uName + "@" + cli->second->host + " QUIT :Quit:" + (ar.size() >= 2 ? ar[1] : ""));
   fdsToEraseNextIteration.insert(auth->fd);
   return 0;
 }
@@ -351,17 +325,16 @@ int Server::execModeCh() {  //  +i   -i   +t   -t   -k   -l   +k mdp   +l 5   +o
     return prepareResp(auth, "482 " + ar[1] + " :You're not channel operator");          // ERR_CHANOPRIVSNEEDED
   if(ar.size() == 2)
     return prepareResp(auth, "MODE " + ar[1] + " " + mode(getCh(ar[1])));                // RPL_CHANNELMODEIS
-  for(size_t i = 2; i < ar.size(); ) {
+  for(size_t i = 2; i < ar.size(); i++) {
     string opt = ar[i];
     string val = (ar.size() >= i + 2 && (opt == "+k" || opt == "+l" || opt == "+o" || opt == "-o")) ? ar[3] : "";
     if((opt == "+o" || opt == "-o") && val != "") {
       vector<string> vals = splitArgToSubargs(val);
-      for(vector<string>::iterator it = vals.begin(); it != vals.end(); it++)
-        execModeOneOoption(opt, *it);
+      for(vector<string>::iterator v = vals.begin(); v != vals.end(); v++)
+        execModeOneOoption(opt, *v);
     }
-    else 
+    else
       execModeOneOoption(opt, val);
-    i++;
     if (opt == "+k" || opt == "+l" || opt == "+o" || opt == "-o")
       i++;
   }
@@ -406,14 +379,13 @@ int Server::execModeOneOoption(string opt, string val) {
 }
 
 // not implemented ERR_UMODEUNKNOWNFLAG
-// partially implemented RPL_UMODEIS
 int Server::execModeCli() {
   if(getCli(ar[1]) == NULL)
     return prepareResp(auth, "401 :" + ar[1] + " No such nick");                           // ERR_NOSUCHNICK
   if(getCli(ar[1])->nick != auth->nick)
     return prepareResp(auth, "502 :" + ar[1] + " :Can't change mode for other users");     // ERR_USERSDONTMATCH
   if(ar.size() == 2)
-    return prepareResp(auth, "221 :" + auth->nick + " ");                                   // RPL_UMODEIS
+    return prepareResp(auth, "221 :" + auth->nick + " ");                                  // RPL_UMODEIS partially implemented here
   if(ar.size() > 3 && ar[2] == "+i")
     return prepareResp(auth, ":" + auth->nick + "!" + auth->uName + "@" + auth->host + " MODE " + ar[1] + " +i ");
   return 0;

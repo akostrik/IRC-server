@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   Server.cpp                                         :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: akostrik <akostrik@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/05/03 21:44:56 by ufitzhug          #+#    #+#             */
-/*   Updated: 2024/05/03 22:02:18 by akostrik         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "Server.hpp"
 
 bool sigReceived;
@@ -34,11 +22,9 @@ void Server::sigHandler(int sig) {
   (void)sig;
 }
 
-// SOL_SOCKET = установка параметров на уровне сокета
-// 1 настройка = (optname, optval, optlen)
-// SO_KEEPALIVE отслеживаниe на серверной стороне клиентских соединений и их принудительного отключения
-// create the socket in non-blocking mode https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking
-// ещё есть https://www.ibase.ru/keepalive/
+// SOL_SOCKET = set parameters on the socket level
+// 1 option = (optname, optval, optlen)
+// a socket in non-blocking mode https://stackoverflow.com/questions/1543466/how-do-i-change-a-tcp-socket-to-be-non-blocking
 void Server::init() {
   try {
     signal(SIGINT,  sigHandler); // catch ctrl + c
@@ -85,18 +71,18 @@ void Server::run() {
     eraseUnusedClis();
     eraseUnusedChs();
     markPollsToSendMsgsTo();
-    int countEvents = poll(polls.data(), polls.size(), 100);                       // наблюдаем за всеми сокетами сразу, есть ли там что-то для нас
+    int countEvents = poll(polls.data(), polls.size(), 100);
     if (countEvents < 0)
       throw std::runtime_error("Poll error: [" + std::string(strerror(errno)) + "]");
-    if(countEvents > 0)                                                            // в каких=то сокетах есть данные
+    if(countEvents > 0)                                                           // there are some data in sockets
       for(std::vector<struct pollfd>::iterator poll = polls.begin(); poll != polls.end(); poll++) {
-        if((poll->revents & POLLIN) && poll->fd == fdForNewClis) {                 // новый клиент подключился к сокету fdServ
+        if((poll->revents & POLLIN) && poll->fd == fdForNewClis) {                // there is a new client in fdServ
           addNewClient(*poll);
           break;
         }
-        else if((poll->revents & POLLIN) && poll->fd != fdForNewClis)              // клиент прислал нам сообщение через свой fdForMsgs
+        else if((poll->revents & POLLIN) && poll->fd != fdForNewClis)             // there is a msg to read in fdForMsgs
           receiveBufAndExecCmds(poll->fd);
-        else if(poll->revents & POLLOUT)                                          // есть сообщения для отпраки клиентам
+        else if(poll->revents & POLLOUT)                                          // there is a msg to send
           sendPreparedResps(clis.at(poll->fd));
       }
   }
@@ -107,7 +93,7 @@ void Server::run() {
 void Server::addNewClient(pollfd poll) {
   struct sockaddr sa;
   socklen_t       saLen = sizeof(sa);
-  int fdForMsgs = accept(poll.fd, &sa, &saLen);                                       // у каждого клиента свой fd для сообщений
+  int fdForMsgs = accept(poll.fd, &sa, &saLen);                                    // every client as its own fd for msgs
   if(fdForMsgs == -1)
     return perror("accept");
   clis[fdForMsgs] = new Cli(fdForMsgs, inet_ntoa(((struct sockaddr_in*)&sa)->sin_addr));;
@@ -124,8 +110,8 @@ void Server::receiveBufAndExecCmds(int fd) {
     newBuf0[i] = '\0';
   int nbBytesReallyReceived = recv(auth->fd, newBuf0.data(), newBuf0.size() - 1, MSG_NOSIGNAL | MSG_DONTWAIT);
   if(nbBytesReallyReceived < 0)
-    perror("recv");                                                                  // ошибка, но возможно клиент ещё тут
-  else if(nbBytesReallyReceived == 0)                                                                // клиент пропал
+    perror("recv");                                                           // the client may be here still
+  else if(nbBytesReallyReceived == 0)                                         // the client has desappeared
     fdsToEraseNextIteration.insert(auth->fd);
   else {
     string newBufRecv = string(newBuf0.begin(), newBuf0.end());
